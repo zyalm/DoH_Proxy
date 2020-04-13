@@ -157,7 +157,14 @@ func (client *Client) runWriter() {
 }
 
 // Resolve takes byte array of query packet and return byte array of resonse packet using miekg/dns package
-func (client *Client) Resolve() {
+func (client *Client) Resolve(resolvers ...Server) {
+	if len(resolvers) > 1 {
+		log.Error("Should only be provided zero or one resolver")
+		return
+	}
+
+	var resolver Server
+
 	newJob := <-client.LookUpChan
 	addr := newJob.Addr
 	buffer := newJob.Data
@@ -186,7 +193,13 @@ func (client *Client) Resolve() {
 		log.WithFields(log.Fields{"Question": question}).Info("Question received")
 
 		questionString := question.String()
-		resolver := client.shard(questionString)
+
+		if len(resolvers) == 0 {
+			// No resolver provided
+			resolver = client.shard(questionString)
+		} else {
+			resolver = resolvers[0]
+		}
 
 		log.WithFields(log.Fields{"Resolver selected": resolver.Name}).Info("Selected Resolver")
 
