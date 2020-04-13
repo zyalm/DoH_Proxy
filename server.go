@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/miekg/dns"
 	log "github.com/sirupsen/logrus"
@@ -32,6 +33,8 @@ type Server struct {
 
 	// https client set header of get request
 	httpClient http.Client
+
+	count int
 }
 
 // Init initialize server
@@ -46,6 +49,8 @@ func (server *Server) Init(upstream string, port int) {
 	log.SetLevel(log.InfoLevel)
 
 	log.Info("Server initialized")
+
+	server.count = 0
 }
 
 // DoH makes an https request and resolves the question using miekg/dns
@@ -67,6 +72,10 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 	}
 
 	req.Header.Add("accept", "application/dns-json")
+
+	if server.count%2 == 0 {
+		time.Sleep(time.Second * 5)
+	}
 	resp, err := server.httpClient.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{"Error": err}).Error("Error during DoH get request")
