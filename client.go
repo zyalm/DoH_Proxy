@@ -199,7 +199,7 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 		return nil, errors.New("Invalid number of resolvers provided")
 	}
 
-	var resolver Server
+	var resolver *Server
 
 	questions := queryM.Question
 	header := queryM.MsgHdr
@@ -225,13 +225,13 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 			// No resolver provided
 			resolver = client.shard(questionString)
 		} else {
-			resolver = resolvers[0]
+			resolver = &resolvers[0]
 		}
 
 		log.WithFields(log.Fields{"Resolver selected": resolver.Name}).Info("Selected Resolver")
 
 		if resolver.Port == 443 {
-			responseMap, err := DoH(&resolver, question)
+			responseMap, err := DoH(resolver, question)
 			if err != nil {
 				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DoH")
 				return nil, err
@@ -260,8 +260,8 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 }
 
 // shard takes applies an algorithm to select one of the resolver for resolution
-func (client *Client) shard(questionString string) (resolver Server) {
-	return client.Resolvers[rand.Intn(len(client.Resolvers))]
+func (client *Client) shard(questionString string) (resolver *Server) {
+	return &client.Resolvers[rand.Intn(len(client.Resolvers))]
 }
 
 // Utils

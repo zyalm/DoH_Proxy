@@ -5,6 +5,7 @@ import (
 	"syscall"
 
 	proxy "github.com/alexthemonk/DoH_Proxy"
+	// "proxy"
 )
 
 var client proxy.Client = proxy.Client{}
