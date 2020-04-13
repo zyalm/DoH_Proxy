@@ -204,7 +204,7 @@ func (client *Client) Resolve(resolvers ...Server) {
 		log.WithFields(log.Fields{"Resolver selected": resolver.Name}).Info("Selected Resolver")
 
 		if resolver.Port == 443 {
-			responseMap, err := resolver.DoH(question)
+			responseMap, err := DoH(&resolver, question)
 			if err != nil {
 				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DoH")
 				return
@@ -229,7 +229,7 @@ func (client *Client) Resolve(resolvers ...Server) {
 				return
 			}
 		} else if resolver.Port == 53 {
-			responseM, err := resolver.DNS(queryM)
+			responseM, err := DNS(&resolver, queryM)
 			if err != nil {
 				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DNS")
 				return
@@ -408,7 +408,7 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 // PrintInfo prints all resolvers ip and ports
 func (client *Client) PrintInfo() {
 	for k, v := range client.Resolvers {
-		fmt.Printf("%s: \n", k)
+		fmt.Printf("%d: \n", k)
 		v.PrintInfo()
 	}
 }

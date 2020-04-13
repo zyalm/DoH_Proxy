@@ -49,7 +49,7 @@ func (server *Server) Init(upstream string, port int) {
 }
 
 // DoH makes an https request and resolves the question using miekg/dns
-func (server *Server) DoH(question dns.Question) (map[string]interface{}, error) {
+func DoH(server *Server, question dns.Question) (map[string]interface{}, error) {
 	if server.Port != 443 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return nil, errors.New("Invalid Port Number")
@@ -90,7 +90,7 @@ func (server *Server) DoH(question dns.Question) (map[string]interface{}, error)
 }
 
 // DNS forwards the DNS query and resolve the message
-func (server *Server) DNS(queryM *dns.Msg) (dns.Msg, error) {
+func DNS(server *Server, queryM *dns.Msg) (dns.Msg, error) {
 	if server.Port != 53 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return dns.Msg{}, errors.New("Invalid Port Number")
