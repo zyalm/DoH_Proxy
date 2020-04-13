@@ -76,6 +76,8 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 	if server.count%2 == 0 {
 		time.Sleep(time.Second * 5)
 	}
+	server.count += 1
+
 	resp, err := server.httpClient.Do(req)
 	if err != nil {
 		log.WithFields(log.Fields{"Error": err}).Error("Error during DoH get request")

@@ -144,7 +144,7 @@ func (client *Client) runResolver(id int) {
 
 		responseM, err := client.Resolve(queryM)
 		if err != nil {
-			log.WithFields(log.Fields{"Error": err}).Error("Client failed to resolving")
+			log.WithFields(log.Fields{"Error": err}).Error("Client failed to resolve")
 			continue
 		}
 
