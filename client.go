@@ -309,7 +309,7 @@ func constructResponseMessage(responseM *dns.Msg, responseMap map[string]interfa
 
 func constructResource(answer map[string]interface{}) (dns.RR, error) {
 	var resourceHeader dns.RR_Header = dns.RR_Header{
-		Name:   answer["name"].(string),
+		Name:   dns.Fqdn(answer["name"].(string)),
 		Rrtype: uint16(answer["type"].(float64)),
 		Class:  dns.ClassINET,
 		Ttl:    uint32(answer["TTL"].(float64)),
