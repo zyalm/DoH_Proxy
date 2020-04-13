@@ -103,8 +103,9 @@ func (client *Client) StartProxy() {
 	}
 
 	for i := 0; i < client.Num; i++ {
-		go client.runReader(i)
+		go client.runResolver(i)
 	}
+	go client.runListener()
 	go client.runWriter()
 
 	client.Stop()
@@ -124,8 +125,46 @@ func (client *Client) Stop() {
 }
 
 // run keeps running, acting as proxy that listen and send and receive and send
-func (client *Client) runReader(id int) {
-	log.WithFields(log.Fields{"ID": id}).Info("Client reader running")
+func (client *Client) runResolver(id int) {
+	log.WithFields(log.Fields{"ID": id}).Info("Client resolver running")
+	for {
+		newJob := <-client.LookUpChan
+		addr := newJob.Addr
+		buffer := newJob.Data
+
+		// Parse the message
+		var queryM *dns.Msg = new(dns.Msg)
+		err := queryM.Unpack(buffer)
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Parsing error")
+			continue
+		}
+
+		responseBytes := make([]byte, 1024)
+
+		responseM, err := client.Resolve(queryM)
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Client failed to resolving")
+			continue
+		}
+
+		responseBytes, err = responseM.Pack()
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Client failed to packing response")
+			continue
+		}
+
+		newResult := job{
+			Addr: addr,
+			Data: responseBytes,
+		}
+		client.ResultChan <- newResult
+
+	}
+}
+
+func (client *Client) runListener() {
+	log.Info("Client listener running")
 	for {
 		buffer := make([]byte, 1024)
 		size, addr, err := client.PC.ReadFrom(buffer)
@@ -138,44 +177,29 @@ func (client *Client) runReader(id int) {
 			Data: buffer,
 		}
 		client.LookUpChan <- newJob
-		log.WithFields(log.Fields{"Size": size, "ID": id}).Info("Message received")
-
-		client.Resolve()
+		log.WithFields(log.Fields{"Size": size}).Info("Message received")
 	}
 }
 
 func (client *Client) runWriter() {
-	log.Info("Client writer running")
 	for {
 		newResult := <-client.ResultChan
-		addr := newResult.Addr
+		responseAddr := newResult.Addr
 		responseBytes := newResult.Data
 
 		// Reply back to the client
-		client.PC.WriteTo(responseBytes, addr)
+		client.PC.WriteTo(responseBytes, responseAddr)
 	}
 }
 
 // Resolve takes byte array of query packet and return byte array of resonse packet using miekg/dns package
-func (client *Client) Resolve(resolvers ...Server) {
+func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, error) {
 	if len(resolvers) > 1 {
 		log.Error("Should only be provided zero or one resolver")
-		return
+		return nil, errors.New("Invalid number of resolvers provided")
 	}
 
 	var resolver Server
-
-	newJob := <-client.LookUpChan
-	addr := newJob.Addr
-	buffer := newJob.Data
-
-	// Parse the message
-	var queryM *dns.Msg = new(dns.Msg)
-	err := queryM.Unpack(buffer)
-	if err != nil {
-		log.WithFields(log.Fields{"Error": err}).Error("Parsing error")
-		return
-	}
 
 	questions := queryM.Question
 	header := queryM.MsgHdr
@@ -187,7 +211,10 @@ func (client *Client) Resolve(resolvers ...Server) {
 		"OpCode": opcode,
 	}).Info("Query Parsed")
 
-	responseBytes := make([]byte, 1024)
+	// responseBytes := make([]byte, 1024)
+
+	// Construct response message
+	var responseM *dns.Msg = new(dns.Msg)
 
 	for _, question := range questions {
 		log.WithFields(log.Fields{"Question": question}).Info("Question received")
@@ -207,46 +234,29 @@ func (client *Client) Resolve(resolvers ...Server) {
 			responseMap, err := DoH(&resolver, question)
 			if err != nil {
 				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DoH")
-				return
+				return nil, err
 			}
 
 			log.WithFields(log.Fields(responseMap)).Info("Response from DoH")
 
-			// Construct response message
-			var responseM *dns.Msg = new(dns.Msg)
 			responseM.Compress = true
 			responseM.SetReply(queryM)
 			err = constructResponseMessage(responseM, responseMap)
 			if err != nil {
 				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
-				return
+				return nil, err
 			}
 
 			// Pack response message in bytes
-			responseBytes, err = responseM.Pack()
-			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed packing DNS response message")
-				return
-			}
-		} else if resolver.Port == 53 {
-			responseM, err := DNS(&resolver, queryM)
-			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DNS")
-				return
-			}
-
-			responseBytes, err = responseM.Pack()
-			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed packing DNS response message")
-				return
-			}
+			// responseBytes, err = responseM.Pack()
+			// if err != nil {
+			// 	log.WithFields(log.Fields{"Error": err}).Error("Failed packing DNS response message")
+			// 	return nil, err
+			// }
 		}
 	}
-	newResult := job{
-		Addr: addr,
-		Data: responseBytes,
-	}
-	client.ResultChan <- newResult
+
+	return responseM, nil
 }
 
 // shard takes applies an algorithm to select one of the resolver for resolution
