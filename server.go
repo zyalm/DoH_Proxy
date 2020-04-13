@@ -74,9 +74,10 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 	req.Header.Add("accept", "application/dns-json")
 
 	if server.count%2 == 0 {
+		fmt.Println(server.count)
 		time.Sleep(time.Second * 5)
 	}
-	server.count += 1
+	server.count++
 
 	resp, err := server.httpClient.Do(req)
 	if err != nil {
