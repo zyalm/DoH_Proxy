@@ -296,9 +296,45 @@ func constructResponseMessage(responseM *dns.Msg, responseMap map[string]interfa
 		}
 	}
 
-	responseM.MsgHdr.Truncated = responseMap["TC"].(bool)
-	responseM.MsgHdr.RecursionDesired = responseMap["RD"].(bool)
-	responseM.MsgHdr.RecursionAvailable = responseMap["RA"].(bool)
+	// Additionals
+	additionalMap, ok := responseMap["Additional"]
+	if ok {
+		for _, additionalInterface := range additionalMap.([]interface{}) {
+			additional := additionalInterface.(map[string]interface{})
+
+			resourceBody, err := constructResource(additional)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Failed constructing DNS response")
+				return err
+			}
+
+			responseAdditionals = append(responseAdditionals, resourceBody)
+		}
+	}
+
+	truncated, ok := responseMap["TC"]
+	if ok {
+		responseM.MsgHdr.Truncated = truncated.(bool)
+	} else {
+		// default false
+		responseM.MsgHdr.Truncated = false
+	}
+
+	recursionDesired, ok := responseMap["RD"]
+	if ok {
+		responseM.MsgHdr.RecursionDesired = recursionDesired.(bool)
+	} else {
+		// default true
+		responseM.MsgHdr.RecursionDesired = true
+	}
+
+	recursionAvailable, ok := responseMap["RA"]
+	if ok {
+		responseM.MsgHdr.RecursionAvailable = recursionAvailable.(bool)
+	} else {
+		// default true
+		responseM.MsgHdr.RecursionAvailable = true
+	}
 
 	responseM.Answer = responseAnswers
 	responseM.Ns = responseAuthorities
