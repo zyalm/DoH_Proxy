@@ -23,6 +23,9 @@ type Server struct {
 	// IP for DNS, url for DoH
 	Upstream string
 
+	// header
+	Header map[string]string
+
 	// port number of the upstream server
 	// 53 for DNS, 443 for DoH
 	Port int
@@ -38,8 +41,16 @@ type Server struct {
 func (server *Server) Init(upstream string, port int) {
 
 	server.Upstream = upstream
+	server.Header = make(map[string]string)
 	server.Port = port
 	server.ShutDown = make(chan os.Signal)
+
+	// Initialize Header
+	if server.Name == "Google" {
+		server.Header["accept"] = "application/dns-message"
+	} else {
+		server.Header["accept"] = "application/dns-json"
+	}
 
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	// Only log the Debug level or above.
@@ -57,7 +68,7 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 	query := question.Name
 	queryType := strconv.Itoa(int(question.Qtype))
 	queryURL := fmt.Sprintf("https://%s?name=%s&type=%s", server.Upstream, query, queryType)
-	log.WithFields(log.Fields{"Url": queryURL}).Debug("Constructed Url")
+	log.WithFields(log.Fields{"Url": queryURL}).Info("Constructed Url")
 
 	// contruct http.client for get request with header set for json
 	req, err := http.NewRequest("GET", queryURL, nil)
@@ -66,7 +77,16 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 		return nil, err
 	}
 
-	req.Header.Add("accept", "application/dns-json")
+	// Add header fields
+	for key, value := range server.Header {
+		req.Header.Add(key, value)
+	}
+
+	// Special to Google
+	// May need to consider to move to different place
+	if server.Name == "Google" {
+		req.Host = "dns.google"
+	}
 
 	resp, err := server.httpClient.Do(req)
 	if err != nil {
