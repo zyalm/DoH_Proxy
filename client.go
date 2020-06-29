@@ -124,7 +124,7 @@ func (client *Client) Stop() {
 	log.Info("Client shut down")
 }
 
-// run keeps running, acting as proxy that listen and send and receive and send
+// runResolver manages requests to perform DoH lookup via upstream servers
 func (client *Client) runResolver(id int) {
 	log.WithFields(log.Fields{"ID": id}).Info("Client resolver running")
 	for {
@@ -163,6 +163,7 @@ func (client *Client) runResolver(id int) {
 	}
 }
 
+// runListener listens for requests from the downstream DNS requests for processing
 func (client *Client) runListener() {
 	log.Info("Client listener running")
 	for {
@@ -181,6 +182,7 @@ func (client *Client) runListener() {
 	}
 }
 
+// runWriter takes results from upstream lookup and send back to the downstream
 func (client *Client) runWriter() {
 	for {
 		newResult := <-client.ResultChan
@@ -193,9 +195,13 @@ func (client *Client) runWriter() {
 }
 
 // Resolve takes byte array of query packet and return byte array of resonse packet using miekg/dns package
+// resolvers: should only be provided with no or one resolver as argument
+// If no resolver provided, randomly shard through all of the resolvers
+// If one resolver provided, then use the one provided
+// Returns a dns message object
 func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, error) {
 	if len(resolvers) > 1 {
-		log.Error("Should only be provided zero or one resolver")
+		log.Error("Should only be given zero or one resolver")
 		return nil, errors.New("Invalid number of resolvers provided")
 	}
 
@@ -246,13 +252,6 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
 				return nil, err
 			}
-
-			// Pack response message in bytes
-			// responseBytes, err = responseM.Pack()
-			// if err != nil {
-			// 	log.WithFields(log.Fields{"Error": err}).Error("Failed packing DNS response message")
-			// 	return nil, err
-			// }
 		}
 	}
 
@@ -441,8 +440,15 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 			AAAA: resourceIP,
 		}
 		break
+	// case 48:
+	// 	// Type NSEC
+	// 	resourceBody = &dns.NSEC{
+	// 		Hdr: resourceHeader,
+	// 	}
+	// 	break
 	default:
-		log.WithFields(log.Fields{"data": answer["data"].(string)}).Error("Constructing DNS response. Type not supported")
+		log.WithFields(log.Fields{"data": answer["data"].(string),
+			"type": answer["type"].(float64)}).Error("Constructing DNS response. Type not supported")
 		return nil, errors.New("Type not supported")
 	}
 
