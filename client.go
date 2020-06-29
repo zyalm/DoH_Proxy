@@ -60,6 +60,12 @@ type Client struct {
 
 	// latest error message
 	Err error
+
+	// error logger
+	Logger *log.Logger
+
+	// error log output file
+	ErrLogFile *os.File
 }
 
 // Init initialize client
@@ -79,6 +85,14 @@ func (client *Client) Init(ip string, port int) {
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	// Only log the Debug level or above.
 	log.SetLevel(log.InfoLevel)
+
+	client.Logger = log.New()
+	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if client.Err == nil {
+		client.Logger.Out = client.ErrLogFile
+	} else {
+		log.Info("Failed to log to file, using default stderr")
+	}
 
 	rand.Seed(time.Now().Unix())
 
@@ -120,6 +134,8 @@ func (client *Client) Stop() {
 	close(client.ShutDownChan)
 	close(client.LookUpChan)
 	close(client.ResultChan)
+
+	client.ErrLogFile.Close()
 
 	log.Info("Client shut down")
 }
@@ -440,12 +456,20 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 			AAAA: resourceIP,
 		}
 		break
-	// case 48:
-	// 	// Type NSEC
-	// 	resourceBody = &dns.NSEC{
-	// 		Hdr: resourceHeader,
-	// 	}
-	// 	break
+	case 46:
+		// Type RRSIG
+
+		resourceBody = &dns.RRSIG{
+			Hdr: resourceHeader,
+		}
+		break
+	case 47:
+		// Type NSEC
+
+		resourceBody = &dns.NSEC{
+			Hdr: resourceHeader,
+		}
+		break
 	default:
 		log.WithFields(log.Fields{"data": answer["data"].(string),
 			"type": answer["type"].(float64)}).Error("Constructing DNS response. Type not supported")
