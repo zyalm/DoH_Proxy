@@ -3,6 +3,7 @@ package proxy
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -61,9 +62,6 @@ type Client struct {
 	// latest error message
 	Err error
 
-	// error logger
-	Logger *log.Logger
-
 	// error log output file
 	ErrLogFile *os.File
 }
@@ -86,13 +84,10 @@ func (client *Client) Init(ip string, port int) {
 	// Only log the Debug level or above.
 	log.SetLevel(log.InfoLevel)
 
-	client.Logger = log.New()
 	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if client.Err == nil {
-		client.Logger.Out = client.ErrLogFile
-	} else {
-		log.Info("Failed to log to file, using default stderr")
-	}
+
+	mw := io.MultiWriter(os.Stdout, client.ErrLogFile)
+	log.SetOutput(mw)
 
 	rand.Seed(time.Now().Unix())
 
