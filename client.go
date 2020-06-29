@@ -85,7 +85,6 @@ func (client *Client) Init(ip string, port int) {
 	log.SetLevel(log.InfoLevel)
 
 	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-
 	mw := io.MultiWriter(os.Stdout, client.ErrLogFile)
 	log.SetOutput(mw)
 
@@ -130,9 +129,9 @@ func (client *Client) Stop() {
 	close(client.LookUpChan)
 	close(client.ResultChan)
 
-	client.ErrLogFile.Close()
-
 	log.Info("Client shut down")
+
+	client.ErrLogFile.Close()
 }
 
 // runResolver manages requests to perform DoH lookup via upstream servers
