@@ -2,7 +2,7 @@
 .DS_Store
 
 bin/*
-
+*.log
 pkg/
 
 src/github.com

@@ -84,7 +84,7 @@ func (client *Client) Init(ip string, port int) {
 	// Only log the Debug level or above.
 	log.SetLevel(log.InfoLevel)
 
-	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	mw := io.MultiWriter(os.Stdout, client.ErrLogFile)
 	log.SetOutput(mw)
 
