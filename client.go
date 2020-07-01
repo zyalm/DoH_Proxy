@@ -43,7 +43,9 @@ type Client struct {
 	ShutDownChan chan os.Signal
 
 	// child exit chan send signal to exit workers
-	ChildExitChan chan bool
+	ResolverExitChan chan bool
+	ListenerExitChan chan bool
+	WriterExitChan   chan bool
 
 	// finish shut down
 	ExitChan chan bool
@@ -75,8 +77,11 @@ func (client *Client) Init(ip string, port int) {
 	client.Num = runtime.NumCPU()
 
 	client.ShutDownChan = make(chan os.Signal, 1)
-	client.ChildExitChan = make(chan bool, client.Num)
-	client.ExitChan = make(chan bool, client.Num)
+	client.ResolverExitChan = make(chan bool, client.Num)
+	client.ListenerExitChan = make(chan bool, 1)
+	client.WriterExitChan = make(chan bool, 1)
+	client.ExitChan = make(chan bool, client.Num+2)
+
 	client.LookUpChan = make(chan job, client.Num)
 	client.ResultChan = make(chan job, client.Num)
 
@@ -125,9 +130,23 @@ func (client *Client) Stop() {
 	<-client.ShutDownChan
 	log.Info("Client exiting")
 
+	client.ListenerExitChan <- true
+	err := client.PC.Close()
+	if err != nil {
+		log.WithFields(log.Fields{"Error": err}).Error("Client failed to close UDP connection")
+	}
+	for i := 0; i < client.Num; i++ {
+		client.ResolverExitChan <- true
+	}
+	client.WriterExitChan <- true
+
 	close(client.ShutDownChan)
 	close(client.LookUpChan)
 	close(client.ResultChan)
+	for i := 0; i < client.Num+2; i++ {
+		<-client.ExitChan
+	}
+	close(client.ExitChan)
 
 	log.Info("Client shut down")
 
@@ -138,38 +157,43 @@ func (client *Client) Stop() {
 func (client *Client) runResolver(id int) {
 	log.WithFields(log.Fields{"ID": id}).Info("Client resolver running")
 	for {
-		newJob := <-client.LookUpChan
-		addr := newJob.Addr
-		buffer := newJob.Data
+		select {
+		case <-client.ResolverExitChan:
+			log.WithFields(log.Fields{"ID": id}).Info("Client resolver exited")
+			client.ExitChan <- true
+			return
+		case newJob := <-client.LookUpChan:
+			addr := newJob.Addr
+			buffer := newJob.Data
 
-		// Parse the message
-		var queryM *dns.Msg = new(dns.Msg)
-		err := queryM.Unpack(buffer)
-		if err != nil {
-			log.WithFields(log.Fields{"Error": err}).Error("Parsing error")
-			continue
+			// Parse the message
+			var queryM *dns.Msg = new(dns.Msg)
+			err := queryM.Unpack(buffer)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Parsing error")
+				continue
+			}
+
+			responseBytes := make([]byte, 1024)
+
+			responseM, err := client.Resolve(queryM)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Client failed to resolve")
+				continue
+			}
+
+			responseBytes, err = responseM.Pack()
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Client failed to packing response")
+				continue
+			}
+
+			newResult := job{
+				Addr: addr,
+				Data: responseBytes,
+			}
+			client.ResultChan <- newResult
 		}
-
-		responseBytes := make([]byte, 1024)
-
-		responseM, err := client.Resolve(queryM)
-		if err != nil {
-			log.WithFields(log.Fields{"Error": err}).Error("Client failed to resolve")
-			continue
-		}
-
-		responseBytes, err = responseM.Pack()
-		if err != nil {
-			log.WithFields(log.Fields{"Error": err}).Error("Client failed to packing response")
-			continue
-		}
-
-		newResult := job{
-			Addr: addr,
-			Data: responseBytes,
-		}
-		client.ResultChan <- newResult
-
 	}
 }
 
@@ -177,30 +201,44 @@ func (client *Client) runResolver(id int) {
 func (client *Client) runListener() {
 	log.Info("Client listener running")
 	for {
-		buffer := make([]byte, 1024)
-		size, addr, err := client.PC.ReadFrom(buffer)
-		if err != nil {
-			log.WithFields(log.Fields{"Error": err}).Error("Client failed to read packet")
-			continue
+		select {
+		case <-client.ListenerExitChan:
+			log.Info("Client listener exited")
+			client.ExitChan <- true
+			return
+		default:
+			buffer := make([]byte, 1024)
+			size, addr, err := client.PC.ReadFrom(buffer)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Client failed to read packet")
+				continue
+			}
+			newJob := job{
+				Addr: addr,
+				Data: buffer,
+			}
+			client.LookUpChan <- newJob
+			log.WithFields(log.Fields{"Size": size}).Info("Message received")
 		}
-		newJob := job{
-			Addr: addr,
-			Data: buffer,
-		}
-		client.LookUpChan <- newJob
-		log.WithFields(log.Fields{"Size": size}).Info("Message received")
 	}
 }
 
 // runWriter takes results from upstream lookup and send back to the downstream
 func (client *Client) runWriter() {
+	log.Info("Client writer running")
 	for {
-		newResult := <-client.ResultChan
-		responseAddr := newResult.Addr
-		responseBytes := newResult.Data
+		select {
+		case <-client.WriterExitChan:
+			log.Info("Client writer exited")
+			client.ExitChan <- true
+			return
+		case newResult := <-client.ResultChan:
+			responseAddr := newResult.Addr
+			responseBytes := newResult.Data
 
-		// Reply back to the client
-		client.PC.WriteTo(responseBytes, responseAddr)
+			// Reply back to the client
+			client.PC.WriteTo(responseBytes, responseAddr)
+		}
 	}
 }
 
@@ -398,11 +436,11 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 		// Type SOA
 		resourceData := strings.Split(answer["data"].(string), " ")
 
-		resourceSerial, err := strconv.Atoi(resourceData[2])
-		resourceRefresh, err := strconv.Atoi(resourceData[3])
-		resourceRetry, err := strconv.Atoi(resourceData[4])
-		resourceExpire, err := strconv.Atoi(resourceData[5])
-		resourceMinttl, err := strconv.Atoi(resourceData[6])
+		serial, err := strconv.Atoi(resourceData[2])
+		refresh, err := strconv.Atoi(resourceData[3])
+		retry, err := strconv.Atoi(resourceData[4])
+		expire, err := strconv.Atoi(resourceData[5])
+		minTTL, err := strconv.Atoi(resourceData[6])
 		if err != nil {
 			log.WithFields(log.Fields{"Error": err}).Error("Failed to parse SOA data")
 			return nil, err
@@ -412,11 +450,11 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 			Hdr:     resourceHeader,
 			Ns:      resourceData[0],
 			Mbox:    resourceData[1],
-			Serial:  uint32(resourceSerial),
-			Refresh: uint32(resourceRefresh),
-			Retry:   uint32(resourceRetry),
-			Expire:  uint32(resourceExpire),
-			Minttl:  uint32(resourceMinttl),
+			Serial:  uint32(serial),
+			Refresh: uint32(refresh),
+			Retry:   uint32(retry),
+			Expire:  uint32(expire),
+			Minttl:  uint32(minTTL),
 		}
 		break
 	case 12:
@@ -452,16 +490,46 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 		break
 	case 46:
 		// Type RRSIG
+		resourceData := strings.Split(answer["data"].(string), " ")
+
+		algorithm, err := strconv.Atoi(resourceData[1])
+		labels, err := strconv.Atoi(resourceData[2])
+		origTTL, err := strconv.Atoi(resourceData[3])
+		expiration, err := strconv.Atoi(resourceData[4])
+		inception, err := strconv.Atoi(resourceData[5])
+		keyTag, err := strconv.Atoi(resourceData[6])
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Failed to parse SOA data")
+			return nil, err
+		}
 
 		resourceBody = &dns.RRSIG{
-			Hdr: resourceHeader,
+			Hdr:         resourceHeader,
+			TypeCovered: typeToUint16Map[resourceData[0]],
+			Algorithm:   uint8(algorithm),
+			Labels:      uint8(labels),
+			OrigTtl:     uint32(origTTL),
+			Expiration:  uint32(expiration),
+			Inception:   uint32(inception),
+			KeyTag:      uint16(keyTag),
+			SignerName:  resourceData[7],
+			Signature:   resourceData[8],
 		}
 		break
 	case 47:
 		// Type NSEC
+		resourceData := strings.Split(answer["data"].(string), " ")
+		nextDomain := resourceData[0]
+
+		var typeBitMap []uint16
+		for _, t := range resourceData[1:] {
+			typeBitMap = append(typeBitMap, typeToUint16Map[t])
+		}
 
 		resourceBody = &dns.NSEC{
-			Hdr: resourceHeader,
+			Hdr:        resourceHeader,
+			NextDomain: nextDomain,
+			TypeBitMap: typeBitMap,
 		}
 		break
 	default:
@@ -471,6 +539,149 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 	}
 
 	return resourceBody, nil
+}
+
+// type name to uint16 map
+var typeToUint16Map = make(map[string]uint16)
+var classToUint16Map = make(map[string]uint16)
+var rcodeToUint16Map = make(map[string]uint16)
+var opcodeToUint16Map = make(map[string]uint16)
+
+// init
+
+func init() {
+	typeToUint16Map = map[string]uint16{
+		"None":       0,
+		"A":          1,
+		"NS":         2,
+		"MD":         3,
+		"MF":         4,
+		"CNAME":      5,
+		"SOA":        6,
+		"MB":         7,
+		"MG":         8,
+		"MR":         9,
+		"NULL":       10,
+		"PTR":        12,
+		"HINFO":      13,
+		"MINFO":      14,
+		"MX":         15,
+		"TXT":        16,
+		"RP":         17,
+		"AFSDB":      18,
+		"X25":        19,
+		"ISDN":       20,
+		"RT":         21,
+		"NSAPPTR":    23,
+		"SIG":        24,
+		"KEY":        25,
+		"PX":         26,
+		"GPOS":       27,
+		"AAAA":       28,
+		"LOC":        29,
+		"NXT":        30,
+		"EID":        31,
+		"NIMLOC":     32,
+		"SRV":        33,
+		"ATMA":       34,
+		"NAPTR":      35,
+		"KX":         36,
+		"CERT":       37,
+		"DNAME":      39,
+		"OPT":        41, // EDNS
+		"APL":        42,
+		"DS":         43,
+		"SSHFP":      44,
+		"RRSIG":      46,
+		"NSEC":       47,
+		"DNSKEY":     48,
+		"DHCID":      49,
+		"NSEC3":      50,
+		"NSEC3PARAM": 51,
+		"TLSA":       52,
+		"SMIMEA":     53,
+		"HIP":        55,
+		"NINFO":      56,
+		"RKEY":       57,
+		"TALINK":     58,
+		"CDS":        59,
+		"CDNSKEY":    60,
+		"OPENPGPKEY": 61,
+		"CSYNC":      62,
+		"SPF":        99,
+		"UINFO":      100,
+		"UID":        101,
+		"GID":        102,
+		"UNSPEC":     103,
+		"NID":        104,
+		"L32":        105,
+		"L64":        106,
+		"LP":         107,
+		"EUI48":      108,
+		"EUI64":      109,
+		"URI":        256,
+		"CAA":        257,
+		"AVC":        258,
+
+		"TKEY": 249,
+		"TSIG": 250,
+
+		// Question.Qtype only
+		"IXFR":  251,
+		"AXFR":  252,
+		"MAILB": 253,
+		"MAILA": 254,
+		"ANY":   255,
+
+		"TA":       32768,
+		"DLV":      32769,
+		"Reserved": 65535,
+	}
+
+	// class name to uint16 map
+	// Question.Qclass
+	classToUint16Map = map[string]uint16{
+		"INET":   1,
+		"CSNET":  2,
+		"CHAOS":  3,
+		"HESIOD": 4,
+		"NONE":   254,
+		"ANY":    255,
+	}
+
+	// rcode name to uint16 map
+	// Message Response Codes
+	rcodeToUint16Map = map[string]uint16{
+		"Success":        0,  // NoError   - No Error                          [DNS]
+		"FormatError":    1,  // FormErr   - Format Error                      [DNS]
+		"ServerFailure":  2,  // ServFail  - Server Failure                    [DNS]
+		"NameError":      3,  // NXDomain  - Non-Existent Domain               [DNS]
+		"NotImplemented": 4,  // NotImp    - Not Implemented                   [DNS]
+		"Refused":        5,  // Refused   - Query Refused                     [DNS]
+		"YXDomain":       6,  // YXDomain  - Name Exists when it should not    [DNS Update]
+		"YXRrset":        7,  // YXRRSet   - RR Set Exists when it should not  [DNS Update]
+		"NXRrset":        8,  // NXRRSet   - RR Set that should exist does not [DNS Update]
+		"NotAuth":        9,  // NotAuth   - Server Not Authoritative for zone [DNS Update]
+		"NotZone":        10, // NotZone   - Name not contained in zone        [DNS Update/TSIG]
+		"BadSig":         16, // BADSIG    - TSIG Signature Failure            [TSIG]
+		"BadVers":        16, // BADVERS   - Bad OPT Version                   [EDNS0]
+		"BadKey":         17, // BADKEY    - Key not recognized                [TSIG]
+		"BadTime":        18, // BADTIME   - Signature out of time window      [TSIG]
+		"BadMode":        19, // BADMODE   - Bad TKEY Mode                     [TKEY]
+		"BadName":        20, // BADNAME   - Duplicate key name                [TKEY]
+		"BadAlg":         21, // BADALG    - Algorithm not supported           [TKEY]
+		"BadTrunc":       22, // BADTRUNC  - Bad Truncation                    [TSIG]
+		"BadCookie":      23, // BADCOOKIE - Bad/missing Server Cookie         [DNS Cookies]
+	}
+
+	// opcode name to uint16 map
+	opcodeToUint16Map = map[string]uint16{
+		"Query":  0,
+		"IQuery": 1,
+		"Status": 2,
+		"Notify": 4,
+		"Update": 5,
+	}
 }
 
 // Debugging
