@@ -488,6 +488,25 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 			AAAA: resourceIP,
 		}
 		break
+	case 33:
+		// Type SRV
+		resourceData := strings.Split(answer["data"].(string), " ")
+		priority, err := strconv.Atoi(resourceData[0])
+		weight, err := strconv.Atoi(resourceData[1])
+		port, err := strconv.Atoi(resourceData[2])
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Failed to parse SRV data")
+			return nil, err
+		}
+
+		resourceBody = &dns.SRV{
+			Hdr:      resourceHeader,
+			Priority: uint16(priority),
+			Weight:   uint16(weight),
+			Port:     uint16(port),
+			Target:   resourceData[3],
+		}
+		break
 	case 46:
 		// Type RRSIG
 		resourceData := strings.Split(answer["data"].(string), " ")
