@@ -524,7 +524,7 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 
 		resourceBody = &dns.RRSIG{
 			Hdr:         resourceHeader,
-			TypeCovered: typeToUint16Map[resourceData[0]],
+			TypeCovered: dns.StringToType[resourceData[0]],
 			Algorithm:   uint8(algorithm),
 			Labels:      uint8(labels),
 			OrigTtl:     uint32(origTTL),
@@ -542,7 +542,7 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 
 		var typeBitMap []uint16
 		for _, t := range resourceData[1:] {
-			typeBitMap = append(typeBitMap, typeToUint16Map[t])
+			typeBitMap = append(typeBitMap, dns.StringToType[t])
 		}
 
 		resourceBody = &dns.NSEC{
@@ -560,148 +560,148 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 	return resourceBody, nil
 }
 
-// type name to uint16 map
-var typeToUint16Map = make(map[string]uint16)
-var classToUint16Map = make(map[string]uint16)
-var rcodeToUint16Map = make(map[string]uint16)
-var opcodeToUint16Map = make(map[string]uint16)
+// // type name to uint16 map
+// var typeToUint16Map = make(map[string]uint16)
+// var classToUint16Map = make(map[string]uint16)
+// var rcodeToUint16Map = make(map[string]uint16)
+// var opcodeToUint16Map = make(map[string]uint16)
 
-// init
+// // init
 
-func init() {
-	typeToUint16Map = map[string]uint16{
-		"None":       0,
-		"A":          1,
-		"NS":         2,
-		"MD":         3,
-		"MF":         4,
-		"CNAME":      5,
-		"SOA":        6,
-		"MB":         7,
-		"MG":         8,
-		"MR":         9,
-		"NULL":       10,
-		"PTR":        12,
-		"HINFO":      13,
-		"MINFO":      14,
-		"MX":         15,
-		"TXT":        16,
-		"RP":         17,
-		"AFSDB":      18,
-		"X25":        19,
-		"ISDN":       20,
-		"RT":         21,
-		"NSAPPTR":    23,
-		"SIG":        24,
-		"KEY":        25,
-		"PX":         26,
-		"GPOS":       27,
-		"AAAA":       28,
-		"LOC":        29,
-		"NXT":        30,
-		"EID":        31,
-		"NIMLOC":     32,
-		"SRV":        33,
-		"ATMA":       34,
-		"NAPTR":      35,
-		"KX":         36,
-		"CERT":       37,
-		"DNAME":      39,
-		"OPT":        41, // EDNS
-		"APL":        42,
-		"DS":         43,
-		"SSHFP":      44,
-		"RRSIG":      46,
-		"NSEC":       47,
-		"DNSKEY":     48,
-		"DHCID":      49,
-		"NSEC3":      50,
-		"NSEC3PARAM": 51,
-		"TLSA":       52,
-		"SMIMEA":     53,
-		"HIP":        55,
-		"NINFO":      56,
-		"RKEY":       57,
-		"TALINK":     58,
-		"CDS":        59,
-		"CDNSKEY":    60,
-		"OPENPGPKEY": 61,
-		"CSYNC":      62,
-		"SPF":        99,
-		"UINFO":      100,
-		"UID":        101,
-		"GID":        102,
-		"UNSPEC":     103,
-		"NID":        104,
-		"L32":        105,
-		"L64":        106,
-		"LP":         107,
-		"EUI48":      108,
-		"EUI64":      109,
-		"URI":        256,
-		"CAA":        257,
-		"AVC":        258,
+// func init() {
+// 	typeToUint16Map = map[string]uint16{
+// 		"None":       0,
+// 		"A":          1,
+// 		"NS":         2,
+// 		"MD":         3,
+// 		"MF":         4,
+// 		"CNAME":      5,
+// 		"SOA":        6,
+// 		"MB":         7,
+// 		"MG":         8,
+// 		"MR":         9,
+// 		"NULL":       10,
+// 		"PTR":        12,
+// 		"HINFO":      13,
+// 		"MINFO":      14,
+// 		"MX":         15,
+// 		"TXT":        16,
+// 		"RP":         17,
+// 		"AFSDB":      18,
+// 		"X25":        19,
+// 		"ISDN":       20,
+// 		"RT":         21,
+// 		"NSAPPTR":    23,
+// 		"SIG":        24,
+// 		"KEY":        25,
+// 		"PX":         26,
+// 		"GPOS":       27,
+// 		"AAAA":       28,
+// 		"LOC":        29,
+// 		"NXT":        30,
+// 		"EID":        31,
+// 		"NIMLOC":     32,
+// 		"SRV":        33,
+// 		"ATMA":       34,
+// 		"NAPTR":      35,
+// 		"KX":         36,
+// 		"CERT":       37,
+// 		"DNAME":      39,
+// 		"OPT":        41, // EDNS
+// 		"APL":        42,
+// 		"DS":         43,
+// 		"SSHFP":      44,
+// 		"RRSIG":      46,
+// 		"NSEC":       47,
+// 		"DNSKEY":     48,
+// 		"DHCID":      49,
+// 		"NSEC3":      50,
+// 		"NSEC3PARAM": 51,
+// 		"TLSA":       52,
+// 		"SMIMEA":     53,
+// 		"HIP":        55,
+// 		"NINFO":      56,
+// 		"RKEY":       57,
+// 		"TALINK":     58,
+// 		"CDS":        59,
+// 		"CDNSKEY":    60,
+// 		"OPENPGPKEY": 61,
+// 		"CSYNC":      62,
+// 		"SPF":        99,
+// 		"UINFO":      100,
+// 		"UID":        101,
+// 		"GID":        102,
+// 		"UNSPEC":     103,
+// 		"NID":        104,
+// 		"L32":        105,
+// 		"L64":        106,
+// 		"LP":         107,
+// 		"EUI48":      108,
+// 		"EUI64":      109,
+// 		"URI":        256,
+// 		"CAA":        257,
+// 		"AVC":        258,
 
-		"TKEY": 249,
-		"TSIG": 250,
+// 		"TKEY": 249,
+// 		"TSIG": 250,
 
-		// Question.Qtype only
-		"IXFR":  251,
-		"AXFR":  252,
-		"MAILB": 253,
-		"MAILA": 254,
-		"ANY":   255,
+// 		// Question.Qtype only
+// 		"IXFR":  251,
+// 		"AXFR":  252,
+// 		"MAILB": 253,
+// 		"MAILA": 254,
+// 		"ANY":   255,
 
-		"TA":       32768,
-		"DLV":      32769,
-		"Reserved": 65535,
-	}
+// 		"TA":       32768,
+// 		"DLV":      32769,
+// 		"Reserved": 65535,
+// 	}
 
-	// class name to uint16 map
-	// Question.Qclass
-	classToUint16Map = map[string]uint16{
-		"INET":   1,
-		"CSNET":  2,
-		"CHAOS":  3,
-		"HESIOD": 4,
-		"NONE":   254,
-		"ANY":    255,
-	}
+// 	// class name to uint16 map
+// 	// Question.Qclass
+// 	classToUint16Map = map[string]uint16{
+// 		"INET":   1,
+// 		"CSNET":  2,
+// 		"CHAOS":  3,
+// 		"HESIOD": 4,
+// 		"NONE":   254,
+// 		"ANY":    255,
+// 	}
 
-	// rcode name to uint16 map
-	// Message Response Codes
-	rcodeToUint16Map = map[string]uint16{
-		"Success":        0,  // NoError   - No Error                          [DNS]
-		"FormatError":    1,  // FormErr   - Format Error                      [DNS]
-		"ServerFailure":  2,  // ServFail  - Server Failure                    [DNS]
-		"NameError":      3,  // NXDomain  - Non-Existent Domain               [DNS]
-		"NotImplemented": 4,  // NotImp    - Not Implemented                   [DNS]
-		"Refused":        5,  // Refused   - Query Refused                     [DNS]
-		"YXDomain":       6,  // YXDomain  - Name Exists when it should not    [DNS Update]
-		"YXRrset":        7,  // YXRRSet   - RR Set Exists when it should not  [DNS Update]
-		"NXRrset":        8,  // NXRRSet   - RR Set that should exist does not [DNS Update]
-		"NotAuth":        9,  // NotAuth   - Server Not Authoritative for zone [DNS Update]
-		"NotZone":        10, // NotZone   - Name not contained in zone        [DNS Update/TSIG]
-		"BadSig":         16, // BADSIG    - TSIG Signature Failure            [TSIG]
-		"BadVers":        16, // BADVERS   - Bad OPT Version                   [EDNS0]
-		"BadKey":         17, // BADKEY    - Key not recognized                [TSIG]
-		"BadTime":        18, // BADTIME   - Signature out of time window      [TSIG]
-		"BadMode":        19, // BADMODE   - Bad TKEY Mode                     [TKEY]
-		"BadName":        20, // BADNAME   - Duplicate key name                [TKEY]
-		"BadAlg":         21, // BADALG    - Algorithm not supported           [TKEY]
-		"BadTrunc":       22, // BADTRUNC  - Bad Truncation                    [TSIG]
-		"BadCookie":      23, // BADCOOKIE - Bad/missing Server Cookie         [DNS Cookies]
-	}
+// 	// rcode name to uint16 map
+// 	// Message Response Codes
+// 	rcodeToUint16Map = map[string]uint16{
+// 		"Success":        0,  // NoError   - No Error                          [DNS]
+// 		"FormatError":    1,  // FormErr   - Format Error                      [DNS]
+// 		"ServerFailure":  2,  // ServFail  - Server Failure                    [DNS]
+// 		"NameError":      3,  // NXDomain  - Non-Existent Domain               [DNS]
+// 		"NotImplemented": 4,  // NotImp    - Not Implemented                   [DNS]
+// 		"Refused":        5,  // Refused   - Query Refused                     [DNS]
+// 		"YXDomain":       6,  // YXDomain  - Name Exists when it should not    [DNS Update]
+// 		"YXRrset":        7,  // YXRRSet   - RR Set Exists when it should not  [DNS Update]
+// 		"NXRrset":        8,  // NXRRSet   - RR Set that should exist does not [DNS Update]
+// 		"NotAuth":        9,  // NotAuth   - Server Not Authoritative for zone [DNS Update]
+// 		"NotZone":        10, // NotZone   - Name not contained in zone        [DNS Update/TSIG]
+// 		"BadSig":         16, // BADSIG    - TSIG Signature Failure            [TSIG]
+// 		"BadVers":        16, // BADVERS   - Bad OPT Version                   [EDNS0]
+// 		"BadKey":         17, // BADKEY    - Key not recognized                [TSIG]
+// 		"BadTime":        18, // BADTIME   - Signature out of time window      [TSIG]
+// 		"BadMode":        19, // BADMODE   - Bad TKEY Mode                     [TKEY]
+// 		"BadName":        20, // BADNAME   - Duplicate key name                [TKEY]
+// 		"BadAlg":         21, // BADALG    - Algorithm not supported           [TKEY]
+// 		"BadTrunc":       22, // BADTRUNC  - Bad Truncation                    [TSIG]
+// 		"BadCookie":      23, // BADCOOKIE - Bad/missing Server Cookie         [DNS Cookies]
+// 	}
 
-	// opcode name to uint16 map
-	opcodeToUint16Map = map[string]uint16{
-		"Query":  0,
-		"IQuery": 1,
-		"Status": 2,
-		"Notify": 4,
-		"Update": 5,
-	}
-}
+// 	// opcode name to uint16 map
+// 	opcodeToUint16Map = map[string]uint16{
+// 		"Query":  0,
+// 		"IQuery": 1,
+// 		"Status": 2,
+// 		"Notify": 4,
+// 		"Update": 5,
+// 	}
+// }
 
 // Debugging
 
