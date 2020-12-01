@@ -5,9 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"os"
 	"strconv"
 
 	"github.com/miekg/dns"
@@ -31,7 +29,7 @@ type Server struct {
 	Port int
 
 	// signal channel for shutting down the server
-	ShutDown chan os.Signal
+	// ShutDown chan os.Signal
 
 	// https client set header of get request
 	httpClient http.Client
@@ -43,7 +41,7 @@ func (server *Server) Init(upstream string, port int) {
 	server.Upstream = upstream
 	server.Header = make(map[string]string)
 	server.Port = port
-	server.ShutDown = make(chan os.Signal)
+	// server.ShutDown = make(chan os.Signal)
 
 	// Initialize Header
 	if server.Name == "Google" {
@@ -111,35 +109,44 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 }
 
 // DNS forwards the DNS query and resolve the message
-func DNS(server *Server, queryM *dns.Msg) (dns.Msg, error) {
+func DNS(server *Server, queryM *dns.Msg) (*dns.Msg, error) {
 	if server.Port != 53 {
 		log.Fatal("Unable to make https request from a server for other purpose")
-		return dns.Msg{}, errors.New("Invalid Port Number")
+		return nil, errors.New("Invalid Port Number")
 	}
 	resolver := fmt.Sprintf("%s:%d", server.Upstream, server.Port)
 
-	// TODO: add timeout and resend
-	conn, err := net.Dial("udp", resolver)
-
-	if err != nil {
-		log.WithFields(log.Fields{"Error": err}).Error("Error dialing UDP resolver")
+	dnsClient := &dns.Client{
+		Net: "udp",
 	}
 
-	queryBytes, err := queryM.Pack()
+	responseM, rtt, err := dnsClient.Exchange(queryM, resolver)
+
 	if err != nil {
-		log.WithFields(log.Fields{"Error": err}).Error("Error packing query")
+		log.WithFields(log.Fields{
+			"error":       err.Error(),
+			"name server": resolver}).Error("DNS Client Exchange Socket error")
+		return nil, err
 	}
-	conn.Write(queryBytes)
 
-	buffer := make([]byte, 1024)
-	conn.Read(buffer)
-
-	var responseM dns.Msg
-
-	responseM.Unpack(buffer)
-
-	fmt.Println(responseM)
-
+	if responseM != nil && responseM.Rcode != dns.RcodeSuccess {
+		// failure
+		log.WithFields(log.Fields{
+			"name server": resolver}).Info("Failed to get a valid answer for query from nameserver")
+		if responseM.Rcode == dns.RcodeServerFailure {
+			// SERVFAIL: don't provide response because other DNS servers may have better luck
+			log.WithFields(log.Fields{"Rcode": responseM.Rcode}).Error("ServFail")
+			return nil, err
+		} else {
+			log.WithFields(log.Fields{"Rcode": responseM.Rcode}).Error("NXDOMAIN ERROR")
+		}
+	} else {
+		// success
+		log.WithFields(log.Fields{
+			"name server": resolver,
+			"net":         "udp",
+			"tll":         rtt}).Info("Resolve successfully")
+	}
 	return responseM, nil
 }
 
