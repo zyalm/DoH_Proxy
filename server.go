@@ -120,7 +120,7 @@ func DNS(server *Server, queryM *dns.Msg) (*dns.Msg, error) {
 		Net: "udp",
 	}
 
-	responseM, rtt, err := dnsClient.Exchange(queryM, resolver)
+	responseM, _, err := dnsClient.Exchange(queryM, resolver)
 
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -140,13 +140,8 @@ func DNS(server *Server, queryM *dns.Msg) (*dns.Msg, error) {
 		} else {
 			log.WithFields(log.Fields{"Rcode": responseM.Rcode}).Error("NXDOMAIN ERROR")
 		}
-	} else {
-		// success
-		log.WithFields(log.Fields{
-			"name server": resolver,
-			"net":         "udp",
-			"tll":         rtt}).Info("Resolve successfully")
 	}
+
 	return responseM, nil
 }
 

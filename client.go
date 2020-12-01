@@ -300,6 +300,8 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
 				return nil, err
 			}
+		} else if resolver.Port == 53 {
+			responseM, _ = DNS(resolver, queryM)
 		}
 	}
 
