@@ -301,7 +301,13 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 				return nil, err
 			}
 		} else if resolver.Port == 53 {
-			responseM, _ = DNS(resolver, queryM)
+			responseMsg, err := DNS(resolver, queryM)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DNS")
+				return nil, err
+			}
+			responseM = responseMsg
+			break
 		}
 	}
 
