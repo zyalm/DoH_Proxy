@@ -490,7 +490,12 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 		break
 	case 16:
 		// Type TXT
-		resourceData := []string{answer["data"].(string)}
+		data, err := strconv.Unquote(answer["data"].(string))
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Failed to parse TXT data")
+			return nil, err
+		}
+		resourceData := []string{data}
 
 		resourceBody = &dns.TXT{
 			Hdr: resourceHeader,
