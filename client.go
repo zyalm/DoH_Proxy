@@ -184,7 +184,7 @@ func (client *Client) runResolver(id int) {
 
 			responseBytes, err = responseM.Pack()
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Client failed to packing response")
+				log.WithFields(log.Fields{"Error": err, "Response": responseM}).Error("Client failed to packing response")
 				continue
 			}
 
