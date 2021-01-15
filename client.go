@@ -488,6 +488,15 @@ func constructResource(answer map[string]interface{}) (dns.RR, error) {
 			Mx:         resourceData[1],
 		}
 		break
+	case 16:
+		// Type TXT
+		resourceData := []string{answer["data"].(string)}
+
+		resourceBody = &dns.TXT{
+			Hdr: resourceHeader,
+			Txt: resourceData,
+		}
+		break
 	case 28:
 		// Type AAAA
 		resourceIP := net.ParseIP(answer["data"].(string))
