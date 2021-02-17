@@ -12,6 +12,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Global variables
+var REQ_DNS int = 1 // DNS request
+var REQ_DOH int = 2 // DoH request
+
 // Server serves server side traffics
 type Server struct {
 	// name of the resolver
@@ -57,8 +61,50 @@ func (server *Server) Init(upstream string, port int) {
 	log.Info("Server initialized")
 }
 
+// Resolve as the server funciton will call the corresponding DoH or DNS function based on the requested service
+func (server *Server) Resolve(queryM *dns.Msg, reqType int) (*dns.Msg, error) {
+	questions := queryM.Question
+	// header := queryM.MsgHdr
+	// id := header.Id
+	// opcode := header.Opcode
+
+	var responseM *dns.Msg = new(dns.Msg)
+
+	if reqType == REQ_DOH {
+		for _, question := range questions {
+			log.WithFields(log.Fields{"Question": question}).Info("Question received")
+
+			responseMap, err := DoH(server, question)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Failed performing DoH")
+				return nil, err
+			}
+
+			log.WithFields(log.Fields(responseMap)).Info("Response from DoH")
+
+			responseM.Compress = true
+			responseM.SetReply(queryM)
+			err = constructResponseMessage(responseM, responseMap)
+			if err != nil {
+				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
+				return nil, err
+			}
+		}
+	} else if reqType == REQ_DNS {
+		responseMsg, err := DNS(server, queryM)
+		if err != nil {
+			log.WithFields(log.Fields{"Error": err}).Error("Failed performing DNS")
+			return nil, err
+		}
+		responseM = responseMsg
+	}
+	return responseM, nil
+}
+
 // DoH makes an https request and resolves the question using miekg/dns
+// NOTE: This function is to be removed, for now it is kept here for compatibilities for older version
 func DoH(server *Server, question dns.Question) (map[string]interface{}, error) {
+	log.Warn("This function call will be removed in future version")
 	if server.Port != 443 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return nil, errors.New("Invalid Port Number")
@@ -109,7 +155,9 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 }
 
 // DNS forwards the DNS query and resolve the message
+// NOTE: This function is to be removed, for now it is kept here for compatibilities for older version
 func DNS(server *Server, queryM *dns.Msg) (*dns.Msg, error) {
+	log.Warn("This function call will be removed in future version")
 	if server.Port != 53 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return nil, errors.New("Invalid Port Number")
