@@ -86,7 +86,7 @@ func (client *Client) Init(ip string, port int) {
 
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	// Only log the Debug level or above.
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.FatalLevel)
 
 	client.ErrLogFile, client.Err = os.OpenFile("ClientErrorLog.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	mw := io.MultiWriter(os.Stdout, client.ErrLogFile)

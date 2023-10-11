@@ -56,9 +56,9 @@ func (server *Server) Init(upstream string, port int) {
 
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	// Only log the Debug level or above.
-	log.SetLevel(log.InfoLevel)
+	log.SetLevel(log.FatalLevel)
 
-	log.Info("Server initialized")
+	log.Debug("Server initialized")
 }
 
 // Resolve as the server funciton will call the corresponding DoH or DNS function based on the requested service
