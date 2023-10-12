@@ -4,7 +4,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	proxy "github.com/alexthemonk/DoH_Proxy"
+	proxy "github.com/zyalm/DoH_Proxy"
 	// "proxy"
 )
 
