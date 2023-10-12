@@ -93,8 +93,6 @@ func (client *Client) Init(ip string, port int) {
 	log.SetOutput(mw)
 
 	rand.Seed(time.Now().Unix())
-
-	log.Info("Client initialized")
 }
 
 // AddUpstream adds upstream server to client resolvers
