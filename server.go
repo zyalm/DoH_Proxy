@@ -56,7 +56,7 @@ func (server *Server) Init(upstream string, port int) {
 
 	log.SetFormatter(&log.TextFormatter{ForceColors: true})
 	// Only log the Debug level or above.
-	log.SetLevel(log.ErrorLevel)
+	log.SetLevel(log.InfoLevel)
 
 	log.Debug("Server initialized")
 }
