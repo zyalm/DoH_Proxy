@@ -72,7 +72,7 @@ func (server *Server) Resolve(queryM *dns.Msg, reqType int) (*dns.Msg, error) {
 
 	if reqType == REQ_DOH {
 		for _, question := range questions {
-			log.WithFields(log.Fields{"Question": question}).Info("Question received")
+			log.WithFields(log.Fields{"Question": question}).Debug("Question received")
 
 			responseMap, err := DoH(server, question)
 			if err != nil {
@@ -86,7 +86,7 @@ func (server *Server) Resolve(queryM *dns.Msg, reqType int) (*dns.Msg, error) {
 			responseM.SetReply(queryM)
 			err = constructResponseMessage(responseM, responseMap)
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
+				log.WithFields(log.Fields{"Error": err}).Debug("Failed construct response message")
 				return nil, err
 			}
 		}
@@ -104,7 +104,7 @@ func (server *Server) Resolve(queryM *dns.Msg, reqType int) (*dns.Msg, error) {
 // DoH makes an https request and resolves the question using miekg/dns
 // NOTE: This function is to be removed, for now it is kept here for compatibilities for older version
 func DoH(server *Server, question dns.Question) (map[string]interface{}, error) {
-	log.Warn("This function call will be removed in future version")
+	log.Debug("This function call will be removed in future version")
 	if server.Port != 443 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return nil, errors.New("Invalid Port Number")
@@ -157,7 +157,7 @@ func DoH(server *Server, question dns.Question) (map[string]interface{}, error) 
 // DNS forwards the DNS query and resolve the message
 // NOTE: This function is to be removed, for now it is kept here for compatibilities for older version
 func DNS(server *Server, queryM *dns.Msg) (*dns.Msg, error) {
-	log.Warn("This function call will be removed in future version")
+	log.Debug("This function call will be removed in future version")
 	if server.Port != 53 {
 		log.Fatal("Unable to make https request from a server for other purpose")
 		return nil, errors.New("Invalid Port Number")

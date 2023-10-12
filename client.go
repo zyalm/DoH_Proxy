@@ -262,7 +262,7 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 	log.WithFields(log.Fields{
 		"ID":     id,
 		"OpCode": opcode,
-	}).Info("Query Parsed")
+	}).Debug("Query Parsed")
 
 	// responseBytes := make([]byte, 1024)
 
@@ -281,7 +281,7 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 			resolver = &resolvers[0]
 		}
 
-		log.WithFields(log.Fields{"Resolver selected": resolver.Name}).Info("Selected Resolver")
+		log.WithFields(log.Fields{"Resolver selected": resolver.Name}).Debug("Selected Resolver")
 
 		if resolver.Port == 443 {
 			responseMap, err := DoH(resolver, question)
@@ -296,7 +296,7 @@ func (client *Client) Resolve(queryM *dns.Msg, resolvers ...Server) (*dns.Msg, e
 			responseM.SetReply(queryM)
 			err = constructResponseMessage(responseM, responseMap)
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed construct response message")
+				log.WithFields(log.Fields{"Error": err}).Debug("Failed construct response message")
 				return nil, err
 			}
 		} else if resolver.Port == 53 {
@@ -336,7 +336,7 @@ func constructResponseMessage(responseM *dns.Msg, responseMap map[string]interfa
 
 			resourceBody, err := constructResource(answer)
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed constructing DNS response")
+				log.WithFields(log.Fields{"Error": err}).Debug("Failed constructing DNS response")
 				return err
 			}
 
@@ -352,7 +352,7 @@ func constructResponseMessage(responseM *dns.Msg, responseMap map[string]interfa
 
 			resourceBody, err := constructResource(authority)
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed constructing DNS response")
+				log.WithFields(log.Fields{"Error": err}).Debug("Failed constructing DNS response")
 				return err
 			}
 
@@ -368,7 +368,7 @@ func constructResponseMessage(responseM *dns.Msg, responseMap map[string]interfa
 
 			resourceBody, err := constructResource(additional)
 			if err != nil {
-				log.WithFields(log.Fields{"Error": err}).Error("Failed constructing DNS response")
+				log.WithFields(log.Fields{"Error": err}).Debug("Failed constructing DNS response")
 				return err
 			}
 
